@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:vr": "vite --mode vr",
     "build": "vite build",
     "preview": "vite preview",
     "check:maze": "node scripts/check-maze.js"

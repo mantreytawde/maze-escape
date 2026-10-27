@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
 
 const CHROME = process.env.CHROME ?? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const BASE = process.env.BASE ?? 'https://localhost:5173/';
+const BASE = process.env.BASE ?? 'http://localhost:2005/';
 
 mkdirSync('shots', { recursive: true });
 const browser = await puppeteer.launch({

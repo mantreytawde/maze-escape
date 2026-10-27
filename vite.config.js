@@ -1,15 +1,19 @@
 import { defineConfig } from 'vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
-// The headset loads the page over the local network, and WebXR only runs on HTTPS there.
-export default defineConfig({
-  plugins: [basicSsl()],
-  server: {
-    host: true,
-    port: 5173,
-  },
-  preview: {
-    host: true,
-    port: 4173,
-  },
+// A headset loads the page over the local network, where WebXR only runs on HTTPS (`npm run dev:vr`).
+export default defineConfig(({ mode }) => {
+  const vr = mode === 'vr';
+  return {
+    plugins: vr ? [basicSsl()] : [],
+    server: {
+      host: vr,
+      port: 2005,
+      strictPort: true,
+    },
+    preview: {
+      port: 2005,
+      strictPort: true,
+    },
+  };
 });
