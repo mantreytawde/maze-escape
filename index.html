@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maze Escape</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div id="intro" class="overlay">
+      <div class="card">
+        <p class="eyebrow">A VR escape</p>
+        <h1>Maze Escape</h1>
+        <p>
+          You come to in a concrete maze. Three padlocked gates stand between you and the door out, and each
+          key hangs at the end of a dead end somewhere before its gate.
+        </p>
+        <p class="muted">
+          Stop at any crossing and a painted arrow shows the way to whatever you need next. Expect at least
+          five minutes.
+        </p>
+        <div class="buttons">
+          <button id="enter-vr" disabled>Enter VR</button>
+          <button id="play-screen" class="secondary">Play on this screen</button>
+        </div>
+        <p id="vr-status" class="small">Checking for a headset…</p>
+        <div class="controls">
+          <div>
+            <h3>Headset</h3>
+            <ul>
+              <li><b>Right stick forward</b> aim a teleport, release to jump</li>
+              <li><b>Right stick left / right</b> turn</li>
+              <li><b>Left stick</b> walk</li>
+              <li><b>Grip</b> take a key, again to drop it</li>
+              <li><b>Touch key to padlock</b> unlock</li>
+              <li><b>A or X</b> ask for a trail</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Keyboard</h3>
+            <ul>
+              <li><b>W A S D</b> walk</li>
+              <li><b>Mouse</b> look</li>
+              <li><b>E</b> take a key, unlock a gate</li>
+              <li><b>H</b> ask for a trail</li>
+              <li><b>Esc</b> pause</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="hud" hidden>
+      <div class="hud-top">
+        <span id="hud-time">0:00</span>
+        <span id="hud-objective"></span>
+        <span id="hud-hint"></span>
+      </div>
+      <div id="crosshair"></div>
+      <div id="prompt" hidden></div>
+    </div>
+
+    <div id="pause" class="overlay" hidden>
+      <div class="card narrow">
+        <h2>Paused</h2>
+        <p class="muted">Click to keep going.</p>
+      </div>
+    </div>
+
+    <div id="end" class="overlay" hidden>
+      <div class="card narrow">
+        <h1>You're out</h1>
+        <p id="end-stats"></p>
+        <div class="buttons">
+          <button id="again">Walk it again</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
