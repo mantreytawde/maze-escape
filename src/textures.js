@@ -347,31 +347,59 @@ function weather(ctx, rand, w, h, count) {
   ctx.restore();
 }
 
-const PAINT = '214,148,48';
+const PAINT = '226,152,40';
+const BLOOD_RED = '168,20,16';
 
-// Arrow points toward the top of the canvas, which is local +Y on a plane.
-export function makeArrowTexture(seed = 5) {
-  const rand = makeRng(seed);
-  const [c, ctx] = canvas(256, 256);
-  sprayStroke(ctx, rand, 128, 222, 128, 54, 15, PAINT);
-  sprayStroke(ctx, rand, 128, 40, 74, 100, 15, PAINT);
-  sprayStroke(ctx, rand, 128, 40, 182, 100, 15, PAINT);
-  weather(ctx, rand, 256, 256, 700);
+function drip(ctx, rand, x, y, rgb, maxLen) {
+  const len = 14 + rand() * maxLen;
+  const w = 3 + rand() * 4;
+  const g = ctx.createLinearGradient(0, y, 0, y + len);
+  g.addColorStop(0, `rgba(${rgb},0.85)`);
+  g.addColorStop(1, `rgba(${rgb},0.55)`);
+  ctx.fillStyle = g;
+  ctx.fillRect(x - w / 2, y, w, len);
+  ctx.beginPath();
+  ctx.arc(x, y + len, w * 0.75, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// dir is how the arrow reads to someone facing the painted surface: 'left', 'right' or 'up'.
+export function makePaintArrowTexture(dir, { drips = true, rgb = PAINT, seed = 5 } = {}) {
+  const rand = makeRng(seed + dir.length);
+  const [c, ctx] = canvas(512, 512);
+  const w = 46;
+  if (dir === 'up') {
+    sprayStroke(ctx, rand, 256, 450, 256, 110, w, rgb);
+    sprayStroke(ctx, rand, 256, 80, 140, 210, w, rgb);
+    sprayStroke(ctx, rand, 256, 80, 372, 210, w, rgb);
+    if (drips) {
+      for (const x of [130, 150, 362, 380]) if (rand() < 0.8) drip(ctx, rand, x, 220, rgb, 40);
+      for (let i = 0; i < 3; i++) drip(ctx, rand, 244 + rand() * 24, 460, rgb, 30);
+    }
+  } else {
+    const s = dir === 'right' ? 1 : -1;
+    const tip = 256 + s * 190;
+    sprayStroke(ctx, rand, 256 - s * 190, 256, tip - s * 30, 256, w, rgb);
+    sprayStroke(ctx, rand, tip, 256, tip - s * 130, 140, w, rgb);
+    sprayStroke(ctx, rand, tip, 256, tip - s * 130, 372, w, rgb);
+    if (drips) {
+      for (let i = 0; i < 6; i++) drip(ctx, rand, 256 + (rand() - 0.5) * 340, 272, rgb, 70);
+      drip(ctx, rand, tip - s * 128, 384, rgb, 40);
+    }
+  }
+  weather(ctx, rand, 512, 512, 1600);
   return canvasTexture(c);
 }
 
-export function makeDotTexture(seed = 9) {
+export function makeXTexture({ drips = true, seed = 21 } = {}) {
   const rand = makeRng(seed);
-  const [c, ctx] = canvas(128, 128);
-  for (let i = 0; i < 900; i++) {
-    const a = rand() * Math.PI * 2;
-    const r = Math.abs(gauss(rand)) * 18;
-    ctx.fillStyle = `rgba(${PAINT},${r < 12 ? 0.35 : 0.12})`;
-    ctx.beginPath();
-    ctx.arc(64 + Math.cos(a) * r, 64 + Math.sin(a) * r, 0.8 + rand() * 1.8, 0, Math.PI * 2);
-    ctx.fill();
+  const [c, ctx] = canvas(512, 512);
+  sprayStroke(ctx, rand, 90, 80, 420, 420, 50, BLOOD_RED);
+  sprayStroke(ctx, rand, 425, 86, 96, 416, 50, BLOOD_RED);
+  if (drips) {
+    for (const x of [100, 120, 400, 420, 250, 270]) if (rand() < 0.85) drip(ctx, rand, x, x > 200 && x < 300 ? 270 : 420, BLOOD_RED, 60);
   }
-  weather(ctx, rand, 128, 128, 120);
+  weather(ctx, rand, 512, 512, 1400);
   return canvasTexture(c);
 }
 

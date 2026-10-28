@@ -1,3 +1,6 @@
 node_modules/
 dist/
 shots/
+
+# Local Netlify folder
+.netlify

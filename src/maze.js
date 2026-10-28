@@ -158,7 +158,7 @@ function tryLayout(seed) {
   const start = maze.idx(0, MAZE_H - 1);
   const exit = maze.idx(MAZE_W - 1, 0);
   const path = maze.path(start, exit);
-  if (path.length < 60) return null;
+  if (path.length < 26) return null;
 
   const gateAt = GATE_FRACTIONS.map((f) => Math.floor(f * (path.length - 1)));
 

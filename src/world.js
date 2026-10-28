@@ -23,18 +23,20 @@ const COOL = new THREE.Color(0xdde8ff);
 const LIGHT_INTENSITY = 9;
 const LIGHT_RANGE = 7;
 
+const RED = new THREE.Color(0xff2a18);
+
 const NOTE_TEXT = [
-  'The door behind you locked the moment it shut. The only other way out is on the far side of this maze.',
-  'Three gates stand in the way. Each one is padlocked, and each key hangs on a board at the end of a dead end somewhere before its gate.',
-  'Stop at any crossing and an orange arrow shows the way to whatever you need next: a key, a gate, or the door out.',
-  'If you lose your nerve, ask for a trail. It takes a while to come back.',
+  'The door behind you locked when it shut. The way out is past three padlocked gates. Walk up to a key to take it, then walk up to its gate.',
+  'Answer the questions right and orange arrows light up for a while. Get one wrong and you are on your own until the next.',
+  'Take a wrong turn and it wakes up. Run back the way you came. It has taken two people already. You get three chances.',
+  'When the alarm sounds, run. You will not survive the red corridors when the timer runs out.',
 ];
 const NOTE_FOOTER = [
-  'HEADSET  right stick: teleport, turn',
-  '         left stick: walk',
-  '         grip: take key, touch it to lock',
-  '         A or X: trail',
-  'KEYBOARD WASD, mouse, E take/use, H trail',
+  'HANDS    hand forward: walk, hand by shoulder: back',
+  '         hand out to the side: turn',
+  '         left palm to face + pinch: menu',
+  'PADS     sticks move and turn, B or Y: menu',
+  'KEYBOARD WASD, mouse, Esc menu, click answers',
 ];
 
 function worldBox(list, cx, cy, cz, sx, sy, sz) {
@@ -347,24 +349,28 @@ export function buildWorld(renderer, scene, layout) {
   scene.add(ceiling);
 
   // Lamps ------------------------------------------------------------------
+  // Every cell has a lamp. Lighting does not follow the route: some bulbs are dying or dead anywhere,
+  // except that the main path never goes fully dark.
   const gateCells = new Set(layout.gates.map((g) => g.a));
-  const fixtureCells = new Set([start, exit, ...layout.keys, ...gateCells]);
-  for (let c = 0; c < maze.size; c++) {
-    const deg = maze.degree(c);
-    if (deg >= 3 || (deg === 1 && rand() < 0.5) || rand() < 0.2) fixtureCells.add(c);
-  }
+  const mainPath = new Set(layout.path);
   const fixtures = [];
   const fixturesByCell = new Map();
-  for (const c of fixtureCells) {
+  for (let c = 0; c < maze.size; c++) {
     const p = maze.center(c);
     const cool = gateCells.has(c);
+    const roll = rand();
+    let base = 'on';
+    if (!cool && c !== start) {
+      if (roll < 0.22) base = 'dying';
+      else if (roll < 0.34 && !mainPath.has(c)) base = 'off';
+    }
     const f = {
       cell: c,
       pos: new THREE.Vector3(p.x, WALL_H - 0.17, p.z),
       color: cool ? COOL : WARM,
-      flicker: !cool && c !== start && rand() < 0.07,
+      base,
+      mode: base,
       phase: rand() * 100,
-      level: 1,
       index: fixtures.length,
     };
     fixtures.push(f);
@@ -412,7 +418,7 @@ export function buildWorld(renderer, scene, layout) {
     pool.push({ light, halo, fixture: null, level: 0 });
   }
 
-  const hemi = new THREE.HemisphereLight(0x8a93a0, 0x2a2620, 0.32);
+  const hemi = new THREE.HemisphereLight(0x8a93a0, 0x2a2620, 0.09);
   scene.add(hemi);
 
   // Pipes ------------------------------------------------------------------
@@ -774,18 +780,61 @@ export function buildWorld(renderer, scene, layout) {
     const found = [];
     for (const [c, d] of seen) {
       const f = fixturesByCell.get(c);
-      if (f) found.push([f, d + f.pos.distanceTo(head) * 0.05]);
+      if (f.mode === 'on' || f.mode === 'alarm') found.push([f, d + f.pos.distanceTo(head) * 0.05]);
+      else if (f.mode === 'flicker') found.push([f, d + 0.3]);
+      else if (f.mode === 'dying' && d <= 2) found.push([f, d + 1.2]);
     }
     found.sort((a, b) => a[1] - b[1]);
     desired = found.slice(0, LIGHT_POOL).map(([f]) => f);
   }
 
-  function flickerLevel(f, time) {
-    if (!f.flicker) return 1;
+  // A dead bulb that sputters back on in short bursts.
+  function dyingLevel(f, time) {
     const t = time + f.phase;
-    const base = 0.82 + 0.12 * Math.sin(t * 23.0) * Math.sin(t * 7.3);
-    const drop = Math.sin(t * 1.7) > 0.93 && Math.sin(t * 41) > -0.2 ? 0.25 : 1;
-    return base * drop;
+    const burst = Math.sin(t * 0.7) * Math.sin(t * 1.9 + 1.3);
+    if (burst < 0.5) return 0;
+    return (Math.sin(t * 47) > 0 ? 1 : 0.15) * (0.55 + 0.45 * Math.sin(t * 13));
+  }
+
+  // Failing strip of corridor: mostly dark, with harsh irregular strobes.
+  function strobeLevel(f, time) {
+    const t = time + f.phase;
+    const gate = Math.sin(t * 1.1) * Math.sin(t * 2.9 + 0.7) + Math.sin(t * 0.37) * 0.4;
+    if (gate < 0.15) return 0.04;
+    return Math.sin(t * 61) > 0.1 ? 1 : 0.05;
+  }
+
+  function lampLevel(f, time) {
+    switch (f.mode) {
+      case 'on':
+        return 1;
+      case 'dying':
+        return 0.45 * dyingLevel(f, time);
+      case 'flicker':
+        return strobeLevel(f, time);
+      case 'alarm':
+        return 0.25 + 0.75 * Math.pow(Math.max(0, Math.sin(time * 5.5 + f.phase * 0.2)), 2);
+      default:
+        return 0;
+    }
+  }
+
+  const lampColor = (f) => (f.mode === 'alarm' ? RED : f.color);
+
+  const DEAD_BULB = new THREE.Color(0x141414);
+  function paintGlobe(f, level) {
+    if (level <= 0.02) globe.setColorAt(f.index, DEAD_BULB);
+    else globe.setColorAt(f.index, globeColor.copy(lampColor(f)).multiplyScalar(1.4 * level));
+  }
+
+  // `modeOf(cell, base)` returns 'on', 'dying', 'off', 'flicker' or 'alarm'.
+  function setLampModes(modeOf) {
+    for (const f of fixtures) {
+      f.mode = modeOf(f.cell, f.base);
+      paintGlobe(f, lampLevel(f, 0));
+    }
+    globe.instanceColor.needsUpdate = true;
+    lightTimer = 0;
   }
 
   function updateLights(dt, time, head) {
@@ -820,15 +869,21 @@ export function buildWorld(renderer, scene, layout) {
     }
     for (const slot of pool) {
       const f = slot.fixture;
-      const fl = f ? flickerLevel(f, time) : 0;
+      const fl = f ? lampLevel(f, time) : 0;
+      if (f) {
+        slot.light.color.copy(lampColor(f));
+        slot.halo.material.color.copy(lampColor(f));
+      }
       slot.light.intensity = LIGHT_INTENSITY * slot.level * fl;
       slot.halo.material.opacity = 0.55 * slot.level * fl;
     }
+    let repaint = false;
     for (const f of fixtures) {
-      if (!f.flicker) continue;
-      globe.setColorAt(f.index, globeColor.copy(f.color).multiplyScalar(1.4 * flickerLevel(f, time)));
-      globe.instanceColor.needsUpdate = true;
+      if (f.mode === 'on' || f.mode === 'off') continue;
+      paintGlobe(f, lampLevel(f, time));
+      repaint = true;
     }
+    if (repaint) globe.instanceColor.needsUpdate = true;
   }
 
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -906,6 +961,7 @@ export function buildWorld(renderer, scene, layout) {
     exitZone,
     fixtures,
     unlockGate,
+    setLampModes,
     reset,
     update(dt, time, head, onLockLanded) {
       updateLights(dt, time, head);

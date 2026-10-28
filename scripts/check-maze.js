@@ -13,4 +13,4 @@ const pace = (speed) => {
 
 console.log(`seed ${layout.seed} found in ${ms.toFixed(0)} ms`);
 console.log(`main path ${layout.path.length} cells, full route ${layout.route} cells (${metres} m)`);
-console.log(`walking at 1.8 m/s: ${pace(1.8)}, brisk teleporting at 2.5 m/s: ${pace(2.5)}`);
+console.log(`walking at 1.8 m/s: ${pace(1.8)}`);

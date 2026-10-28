@@ -38,7 +38,7 @@ body {
 }
 
 .card {
-  width: min(720px, 100%);
+  width: min(900px, 100%);
   background: rgba(18, 19, 21, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
@@ -130,7 +130,7 @@ button:disabled {
 
 .controls {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 24px;
   margin-top: 18px;
   padding-top: 18px;
@@ -212,6 +212,227 @@ button:disabled {
   border-radius: 8px;
   background: rgba(10, 11, 13, 0.6);
   font-size: 15px;
+}
+
+#scare {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+  background: radial-gradient(ellipse at center, rgba(120, 0, 0, 0) 30%, rgba(90, 0, 0, 0.85) 100%);
+  opacity: 0;
+}
+
+#scare.on {
+  animation: scare 1.5s ease-out forwards;
+}
+
+@keyframes scare {
+  0% {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.55);
+  }
+  6% {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0);
+  }
+  12% {
+    background-color: rgba(255, 240, 240, 0.35);
+  }
+  18% {
+    background-color: rgba(0, 0, 0, 0);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.overlay.home {
+  background: radial-gradient(ellipse at 50% 35%, rgba(60, 34, 12, 0.55), rgba(8, 9, 11, 0.92));
+}
+
+.home-card h1 {
+  font-size: 54px;
+  letter-spacing: 0.02em;
+}
+
+.buttons.stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.buttons.stack button {
+  width: 100%;
+}
+
+.rules {
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.65;
+  font-size: 15px;
+}
+
+.rules b {
+  color: var(--text);
+}
+
+.overlay.bottom {
+  place-items: end center;
+  background: linear-gradient(to bottom, rgba(8, 9, 11, 0) 40%, rgba(8, 9, 11, 0.7));
+}
+
+.overlay.danger {
+  background: radial-gradient(ellipse at center, rgba(60, 0, 0, 0.6), rgba(8, 0, 0, 0.94));
+}
+
+.overlay.quiz {
+  background: rgba(8, 9, 11, 0.55);
+}
+
+.quiz h1 {
+  font-size: 56px;
+}
+
+.options {
+  justify-content: center;
+}
+
+.options button {
+  min-width: 96px;
+  font-size: 26px;
+  padding: 14px 22px;
+}
+
+.options button.wrong {
+  background: #c2392b;
+  border-color: #c2392b;
+}
+
+.options button.right {
+  background: #4caf50;
+  border-color: #4caf50;
+}
+
+.timer {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin: 10px 0 14px;
+}
+
+#quiz-timer {
+  height: 100%;
+  width: 100%;
+  background: var(--paint);
+}
+
+.stars {
+  font-size: 40px;
+  color: #ffd24d;
+  letter-spacing: 0.2em;
+  margin: 0;
+}
+
+#hud-hearts .heart {
+  font-size: 22px;
+  margin-right: 2px;
+}
+
+.heart.full {
+  color: #ff2d3d;
+  text-shadow: 0 0 8px rgba(255, 45, 61, 0.7);
+}
+
+.heart.empty {
+  color: rgba(255, 90, 100, 0.25);
+}
+
+#hud-keys .key {
+  font-size: 18px;
+  margin-right: 3px;
+}
+
+.key.missing {
+  opacity: 0.2;
+  filter: grayscale(1);
+}
+
+.key.used {
+  opacity: 0.5;
+  filter: hue-rotate(70deg);
+}
+
+#hud-status {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  color: var(--muted);
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgba(10, 11, 13, 0.45);
+}
+
+#danger {
+  position: absolute;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  font-weight: 800;
+  font-size: 34px;
+  color: #ff4a3a;
+  text-shadow: 0 0 16px rgba(255, 40, 20, 0.7);
+  animation: pulse 0.8s ease-in-out infinite alternate;
+}
+
+#danger small {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffb0a6;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 12px;
+  background: rgba(10, 11, 13, 0.75);
+  font-size: 20px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+#toast.pop {
+  animation: pop 0.3s ease-out;
+}
+
+@keyframes pop {
+  from {
+    transform: translateX(-50%) scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
 }
 
 @media (max-width: 640px) {

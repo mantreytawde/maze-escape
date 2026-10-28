@@ -1,169 +1,153 @@
 import * as THREE from 'three';
+import { KEY_PICKUP, GATE_REACH } from './config.js';
+import { NUMERALS } from './game.js';
 
-const NUMERALS = ['I', 'II', 'III'];
-const NEAR_GRAB = 0.24;
-const RAY_GRAB = 4;
-const RAY_WIDTH = 0.16;
-const LOCK_TOUCH = 0.17;
-const DESK_REACH = 2.2;
+function glowTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,220,140,0.9)');
+  grad.addColorStop(0.35, 'rgba(255,190,90,0.35)');
+  grad.addColorStop(1, 'rgba(255,170,60,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
+// Keys are collected just by walking up to them and go into your pocket (no holding anything).
+// Walk up to the gate with its key and it flies out of your hand into the padlock by itself.
 export class Interactions {
-  constructor({ scene, camera, renderer, world, audio, game }) {
-    this.scene = scene;
-    this.camera = camera;
-    this.renderer = renderer;
-    this.world = world;
-    this.audio = audio;
-    this.game = game;
-    this.held = null;
-    this.holder = null;
-    this.flying = null;
-    this.inserting = null;
-    this.falling = [];
-    this.prompt = '';
-    this.desktopTarget = null;
+  constructor({ scene, camera, renderer, world, audio, game, player }) {
+    Object.assign(this, { scene, camera, renderer, world, audio, game, player });
+    this.onCollect = null;
+    this.onUnlock = null;
+    this.onLockedGate = null;
+
+    const tex = glowTexture();
+    this.glows = world.keys.map((k) => {
+      const s = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
+      );
+      s.scale.setScalar(0.5);
+      s.position.copy(k.home);
+      scene.add(s);
+      return s;
+    });
+    this.reset();
   }
 
   reset() {
-    this.held = null;
-    this.holder = null;
-    this.flying = null;
+    this.flying = [];
     this.inserting = null;
-    this.falling = [];
     this.prompt = '';
-    this.desktopTarget = null;
+    this.lockedNotice = 0;
   }
 
-  available() {
-    return this.world.keys.filter((k) => k.state === 'hanging' || k.state === 'dropped');
-  }
-
-  worldPos(obj) {
-    return obj.getWorldPosition(new THREE.Vector3());
-  }
-
-  // Headset ----------------------------------------------------------------
-  squeeze(ctrl) {
-    if (this.inserting || this.flying) return;
-    if (this.held && this.holder === ctrl) {
-      this.drop();
-      return;
-    }
-    if (this.held) return;
-
-    const grip = this.worldPos(ctrl.grip);
-    let best = null;
-    let bestD = NEAR_GRAB;
-    for (const k of this.available()) {
-      const d = this.worldPos(k.mesh).distanceTo(grip);
-      if (d < bestD) {
-        best = k;
-        bestD = d;
+  handPoint() {
+    if (this.renderer.xr.isPresenting) {
+      const c = this.player.hand('right') ?? this.player.controllers.find((x) => x.source);
+      if (c?.source) {
+        const obj = c.source.hand ? c.hand.joints?.['wrist'] ?? c.grip : c.grip;
+        const p = obj.getWorldPosition(new THREE.Vector3());
+        if (p.lengthSq() > 0) return p;
       }
     }
-    if (best) {
-      this.attach(best, ctrl);
-      return;
-    }
-
-    const origin = this.worldPos(ctrl.ctrl);
-    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(ctrl.ctrl.getWorldQuaternion(new THREE.Quaternion()));
-    let bestT = RAY_GRAB;
-    for (const k of this.available()) {
-      const v = this.worldPos(k.mesh).sub(origin);
-      const t = v.dot(dir);
-      if (t <= 0 || t > bestT) continue;
-      if (v.addScaledVector(dir, -t).length() < RAY_WIDTH) {
-        best = k;
-        bestT = t;
-      }
-    }
-    if (best) {
-      this.scene.attach(best.mesh);
-      best.state = 'flying';
-      this.falling = this.falling.filter((f) => f.key !== best);
-      this.flying = { key: best, ctrl, from: this.worldPos(best.mesh), t: 0 };
-      this.audio.at('jingle', this.flying.from, 0.5, 1.15);
-    }
+    return this.camera.localToWorld(new THREE.Vector3(0.2, -0.25, -0.45));
   }
 
-  attach(key, holder) {
-    this.falling = this.falling.filter((f) => f.key !== key);
-    key.state = 'held';
-    key.holder = holder;
-    this.held = key;
-    this.holder = holder;
-    if (holder === 'desktop') {
-      this.camera.add(key.mesh);
-      key.mesh.position.set(0.19, -0.16, -0.4);
-      key.mesh.rotation.set(Math.PI / 2 - 0.35, 0.25, 0.5);
-    } else {
-      holder.grip.add(key.mesh);
-      key.mesh.position.set(0, -0.012, -0.045);
-      key.mesh.rotation.set(Math.PI / 2 + 0.25, 0, 0);
-    }
+  collect(key) {
+    key.state = 'collected';
+    this.scene.attach(key.mesh);
+    this.flying.push({ key, from: key.mesh.position.clone(), t: 0 });
+    this.audio.at('jingle', key.mesh.position, 0.9);
+    this.audio.play('correct', 0.35);
+    this.game.onKeyChanged();
+    this.onCollect?.(key);
+  }
+
+  // The padlock side of the gate is the side you arrive from.
+  nearLock(gate, head) {
+    const lock = gate.lockWorld();
+    const d = Math.hypot(head.x - lock.x, head.z - lock.z);
+    const out = new THREE.Vector3(0, 0, 1).applyQuaternion(gate.group.quaternion);
+    const side = (head.x - lock.x) * out.x + (head.z - lock.z) * out.z;
+    return { d, front: side > -0.1 };
+  }
+
+  unlock(gate) {
+    const key = this.world.keys[gate.number];
+    key.state = 'inserting';
+    key.mesh.visible = true;
     key.mesh.scale.setScalar(1.3);
-    this.audio.at('jingle', this.worldPos(key.mesh), 0.75);
-    this.game.onKeyChanged();
-  }
-
-  drop() {
-    const key = this.held;
-    if (!key) return;
-    this.scene.attach(key.mesh);
-    key.state = 'dropped';
-    key.holder = null;
-    this.held = null;
-    this.holder = null;
-    this.falling.push({ key, vy: 0 });
-    this.game.onKeyChanged();
-  }
-
-  useOn(gate) {
-    const key = this.held;
-    if (!key || gate.state !== 'locked' || key.number !== gate.number) return;
-    this.scene.attach(key.mesh);
-    key.state = 'used';
-    key.holder = null;
-    this.held = null;
-    this.holder = null;
     const lock = gate.lockWorld();
     const out = new THREE.Vector3(0, 0, 1).applyQuaternion(gate.group.quaternion);
     const shaftIntoLock = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-    const reach = -key.tipLocal.y * key.mesh.scale.y - 0.01;
+    const reach = -key.tipLocal.y * 1.3 - 0.01;
+    const from = this.handPoint();
+    key.mesh.position.copy(from);
     this.inserting = {
       key,
       gate,
       t: 0,
-      from: this.worldPos(key.mesh),
+      from,
       fromQuat: key.mesh.quaternion.clone(),
       to: lock.clone().addScaledVector(out, reach),
       toQuat: gate.group.quaternion.clone().multiply(shaftIntoLock),
       turned: 0,
     };
+    this.audio.at('jingle', from, 0.6, 1.1);
   }
 
-  // Frame ------------------------------------------------------------------
-  update(dt) {
-    const xr = this.renderer.xr.isPresenting;
+  desktopUse() {
+    const gate = this.game.currentGate;
+    if (!gate || gate.state !== 'locked' || this.inserting) return;
+    const key = this.world.keys[gate.number];
+    if (key.state !== 'collected') return;
+    const head = this.camera.getWorldPosition(new THREE.Vector3());
+    if (this.nearLock(gate, head).d < GATE_REACH + 1) this.unlock(gate);
+  }
 
-    if (this.flying) {
-      const f = this.flying;
-      f.t += dt / 0.28;
-      const target = this.worldPos(f.ctrl.grip);
-      const t = Math.min(1, f.t);
-      f.key.mesh.position.lerpVectors(f.from, target, t * t * (3 - 2 * t));
-      if (f.t >= 1) {
-        this.flying = null;
-        this.attach(f.key, f.ctrl);
+  update(dt, head, time) {
+    this.prompt = '';
+    this.lockedNotice = Math.max(0, this.lockedNotice - dt);
+
+    for (let i = 0; i < this.world.keys.length; i++) {
+      const k = this.world.keys[i];
+      const glow = this.glows[i];
+      glow.visible = k.state === 'hanging';
+      if (glow.visible) {
+        glow.material.opacity = 0.55 + Math.sin(time * 3 + i) * 0.25;
+        k.mesh.rotation.z = Math.sin(time * 1.7 + i) * 0.12;
+        const dy = Math.abs(head.y - k.home.y);
+        if (this.game.running && Math.hypot(head.x - k.home.x, head.z - k.home.z) < KEY_PICKUP && dy < 1.4) {
+          this.collect(k);
+        }
       }
     }
+
+    for (const f of this.flying) {
+      f.t += dt / 0.45;
+      const t = Math.min(1, f.t);
+      const target = this.handPoint();
+      const p = f.key.mesh.position.lerpVectors(f.from, target, t * t * (3 - 2 * t));
+      p.y += Math.sin(t * Math.PI) * 0.25;
+      f.key.mesh.rotation.y += dt * 12;
+      f.key.mesh.scale.setScalar(1.3 * (1 - t * 0.7));
+      if (f.t >= 1) {
+        f.key.mesh.visible = false;
+        f.done = true;
+      }
+    }
+    this.flying = this.flying.filter((f) => !f.done);
 
     if (this.inserting) {
       const s = this.inserting;
       s.t += dt;
-      if (s.t <= 0.4) {
-        const t = Math.min(1, s.t / 0.35);
+      if (s.t <= 0.55) {
+        const t = Math.min(1, s.t / 0.5);
         s.key.mesh.position.lerpVectors(s.from, s.to, t * t * (3 - 2 * t));
         s.key.mesh.quaternion.slerpQuaternions(s.fromQuat, s.toQuat, t);
       } else {
@@ -172,83 +156,33 @@ export class Interactions {
         s.turned += step;
         s.key.mesh.rotateY(step);
       }
-      if (s.t > 0.62) {
+      if (s.t > 0.8) {
         s.key.mesh.visible = false;
+        s.key.state = 'used';
         this.world.unlockGate(s.gate);
-        this.audio.at('grind', this.worldPos(s.gate.group).setY(1.5), 1);
+        this.audio.at('grind', s.gate.group.getWorldPosition(new THREE.Vector3()).setY(1.5), 1);
         this.game.onGateOpened(s.gate);
+        this.onUnlock?.(s.gate);
         this.inserting = null;
-      }
-    }
-
-    for (const f of this.falling) {
-      const p = f.key.mesh.position;
-      f.vy -= 9.8 * dt;
-      p.y += f.vy * dt;
-      if (p.y <= 0.012) {
-        p.y = 0.012;
-        if (Math.abs(f.vy) > 0.6) this.audio.at('clank', p, 0.4, 1.4);
-        f.done = true;
-        f.key.mesh.rotation.set(-Math.PI / 2, Math.random() * Math.PI * 2, 0, 'YXZ');
-        this.game.onKeyChanged();
-      }
-    }
-    this.falling = this.falling.filter((f) => !f.done);
-
-    if (xr) {
-      this.prompt = '';
-      this.desktopTarget = null;
-      if (this.held && this.holder !== 'desktop') {
-        const gate = this.game.currentGate;
-        if (gate && gate.state === 'locked' && this.held.tip().distanceTo(gate.lockWorld()) < LOCK_TOUCH) {
-          this.useOn(gate);
-        }
-      }
-      return;
-    }
-
-    this.updateDesktopPrompt();
-  }
-
-  updateDesktopPrompt() {
-    this.prompt = '';
-    this.desktopTarget = null;
-    if (this.inserting || this.flying) return;
-    const head = this.worldPos(this.camera);
-    const fwd = this.camera.getWorldDirection(new THREE.Vector3());
-
-    const inView = (p, maxAngle) => {
-      const v = p.clone().sub(head);
-      const d = v.length();
-      return d < DESK_REACH && v.normalize().dot(fwd) > Math.cos(maxAngle);
-    };
-
-    if (!this.held) {
-      for (const k of this.available()) {
-        if (inView(this.worldPos(k.mesh), 0.5)) {
-          this.desktopTarget = k;
-          this.prompt = `Press E to take key ${NUMERALS[k.number]}`;
-          return;
-        }
-      }
-      const gate = this.game.currentGate;
-      if (gate && gate.state === 'locked' && inView(gate.lockWorld(), 0.55)) {
-        this.prompt = `Locked. Gate ${NUMERALS[gate.number]} needs key ${NUMERALS[gate.number]}`;
       }
       return;
     }
 
     const gate = this.game.currentGate;
-    if (gate && gate.state === 'locked' && inView(gate.lockWorld(), 0.55)) {
-      this.desktopTarget = gate;
-      this.prompt = `Press E to unlock gate ${NUMERALS[gate.number]}`;
+    if (!gate || gate.state !== 'locked' || !this.game.running) return;
+    const key = this.world.keys[gate.number];
+    const { d, front } = this.nearLock(gate, head);
+    if (d > GATE_REACH + 1.2) return;
+    const n = NUMERALS[gate.number];
+    if (key.state === 'collected') {
+      if (d < GATE_REACH && front) this.unlock(gate);
+      else this.prompt = `Walk up to gate ${n} to unlock it`;
+    } else {
+      this.prompt = `Gate ${n} is locked. Find key ${n}`;
+      if (d < GATE_REACH && this.lockedNotice <= 0) {
+        this.lockedNotice = 6;
+        this.onLockedGate?.(gate);
+      }
     }
-  }
-
-  desktopUse() {
-    const t = this.desktopTarget;
-    if (!t) return;
-    if (this.world.keys.includes(t)) this.attach(t, 'desktop');
-    else this.useOn(t);
   }
 }

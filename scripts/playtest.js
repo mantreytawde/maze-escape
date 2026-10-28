@@ -18,7 +18,7 @@ const errors = [];
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(e.message));
 
-await page.goto(`${BASE}?shot`, { waitUntil: 'load', timeout: 60000 });
+await page.goto(`${BASE}?shot&calm`, { waitUntil: 'load', timeout: 60000 });
 await page.waitForFunction('window.__maze !== undefined', { timeout: 60000 });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 await wait(1500);
@@ -38,7 +38,7 @@ for (let n = 0; n < 3; n++) {
     const key = world.keys[n];
     const from = m.center(m.links(key.cell)[0]);
     player.spawn(from.x, from.z, 0);
-    interactions.attach(key, 'desktop');
+    interactions.collect(key);
   }, n);
   await wait(300);
   console.log(`took key ${n + 1}`, await state());
@@ -50,14 +50,14 @@ for (let n = 0; n < 3; n++) {
     const a = m.center(g.edge.a);
     const b = m.center(g.edge.b);
     player.spawn(a.x, a.z, Math.atan2(-(b.x - a.x), -(b.z - a.z)));
-    interactions.useOn(g);
+    if (!interactions.inserting) interactions.unlock(g);
   }, n);
   // Software rendering runs at a few frames per second, so advance the gate clock directly.
   const tick = (seconds) =>
     page.evaluate((seconds) => {
       const { world, player, interactions } = window.__maze;
       for (let t = 0; t < seconds; t += 0.05) {
-        interactions.update(0.05);
+        interactions.update(0.05, player.head(), 0);
         world.update(0.05, 0, player.head());
       }
     }, seconds);

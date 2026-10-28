@@ -9,33 +9,56 @@
   <body>
     <div id="app"></div>
 
-    <div id="intro" class="overlay">
-      <div class="card">
+    <div id="home" class="overlay home">
+      <div class="card narrow home-card">
         <p class="eyebrow">A VR escape</p>
         <h1>Maze Escape</h1>
-        <p>
-          You come to in a concrete maze. Three padlocked gates stand between you and the door out, and each
-          key hangs at the end of a dead end somewhere before its gate.
-        </p>
         <p class="muted">
-          Stop at any crossing and a painted arrow shows the way to whatever you need next. Expect at least
-          five minutes.
+          Three keys, three padlocked gates and one way out. Something lives in the wrong turns.
         </p>
-        <div class="buttons">
-          <button id="enter-vr" disabled>Enter VR</button>
-          <button id="play-screen" class="secondary">Play on this screen</button>
+        <div class="buttons stack">
+          <button id="start-game">Start game</button>
+          <button id="enter-vr" disabled>Play in VR (with tutorial)</button>
+          <button id="show-howto" class="secondary">How to play</button>
+          <button id="enable-voice" class="secondary">Enable voice answers</button>
         </div>
+        <p id="voice-status" class="small"></p>
         <p id="vr-status" class="small">Checking for a headset…</p>
+        <p id="best" class="small"></p>
+      </div>
+    </div>
+
+    <div id="howto" class="overlay" hidden>
+      <div class="card">
+        <p class="eyebrow">How to play</p>
+        <h2>Find three keys, open three gates, get out</h2>
+        <ul class="rules">
+          <li><b>Keys</b> go into your pocket when you walk up to them. Walk up to the matching gate and it unlocks by itself.</li>
+          <li><b>Questions</b> pop up every half minute. Answer right and arrows on the walls show you the way for a while. Answer wrong and you get nothing until the next one.</li>
+          <li><b>Hearts.</b> You have three. The zombie hunts the wrong turnings, and each catch costs one.</li>
+          <li><b>Danger zones</b> turn the lights red. Follow the arrows out before the timer runs out, or it finds you.</li>
+          <li><b>Flickering lights</b> make it hard to see. Keep moving.</li>
+        </ul>
         <div class="controls">
           <div>
-            <h3>Headset</h3>
+            <h3>Hands (Quest)</h3>
             <ul>
-              <li><b>Right stick forward</b> aim a teleport, release to jump</li>
-              <li><b>Right stick left / right</b> turn</li>
+              <li><b>Open hand straight out</b> walk forward</li>
+              <li><b>Open hand back by shoulder</b> walk back</li>
+              <li><b>Arm out to the side</b> turn that way</li>
+              <li><b>Right pinch, aim, let go</b> teleport</li>
+              <li><b>Say the answer</b> or point and pinch</li>
+              <li><b>Left palm to face, pinch</b> menu</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Controllers</h3>
+            <ul>
               <li><b>Left stick</b> walk</li>
-              <li><b>Grip</b> take a key, again to drop it</li>
-              <li><b>Touch key to padlock</b> unlock</li>
-              <li><b>A or X</b> ask for a trail</li>
+              <li><b>Right stick left / right</b> turn</li>
+              <li><b>Right stick forward</b> aim a teleport, release to jump</li>
+              <li><b>Trigger</b> press buttons</li>
+              <li><b>A, B, X or Y</b> menu</li>
             </ul>
           </div>
           <div>
@@ -43,38 +66,76 @@
             <ul>
               <li><b>W A S D</b> walk</li>
               <li><b>Mouse</b> look</li>
-              <li><b>E</b> take a key, unlock a gate</li>
-              <li><b>H</b> ask for a trail</li>
-              <li><b>Esc</b> pause</li>
+              <li><b>1 2 3</b> or click to answer</li>
+              <li><b>E</b> unlock a gate</li>
+              <li><b>Esc</b> pause menu</li>
             </ul>
           </div>
+        </div>
+        <div class="buttons">
+          <button id="howto-back">Back</button>
         </div>
       </div>
     </div>
 
     <div id="hud" hidden>
       <div class="hud-top">
+        <span id="hud-hearts"></span>
+        <span id="hud-keys"></span>
         <span id="hud-time">0:00</span>
         <span id="hud-objective"></span>
-        <span id="hud-hint"></span>
       </div>
+      <div id="hud-status"></div>
+      <div id="danger" hidden>DANGER <span id="danger-time"></span>s<small>Follow the red arrows out</small></div>
       <div id="crosshair"></div>
       <div id="prompt" hidden></div>
+      <div id="toast" hidden></div>
     </div>
+
+    <div id="scare" hidden></div>
 
     <div id="pause" class="overlay" hidden>
       <div class="card narrow">
         <h2>Paused</h2>
-        <p class="muted">Click to keep going.</p>
+        <div class="buttons stack">
+          <button id="resume">Resume</button>
+          <button id="restart" class="secondary">Restart</button>
+          <button id="exit-home" class="secondary">Exit to home</button>
+        </div>
       </div>
     </div>
 
-    <div id="end" class="overlay" hidden>
+    <div id="quiz" class="overlay quiz" hidden>
       <div class="card narrow">
-        <h1>You're out</h1>
+        <p class="eyebrow">Quick question</p>
+        <h1 id="quiz-text"></h1>
+        <div class="buttons options" id="quiz-options"></div>
+        <div class="timer"><div id="quiz-timer"></div></div>
+        <p class="small">Click an answer or press 1, 2 or 3. Right answers light the arrows for a while.</p>
+      </div>
+    </div>
+
+    <div id="end" class="overlay bottom" hidden>
+      <div class="card narrow">
+        <p class="eyebrow">Victory</p>
+        <h1>You escaped!</h1>
+        <p id="end-stars" class="stars"></p>
         <p id="end-stats"></p>
         <div class="buttons">
-          <button id="again">Walk it again</button>
+          <button id="again">Play again</button>
+          <button id="end-home" class="secondary">Home</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="over" class="overlay danger" hidden>
+      <div class="card narrow">
+        <p class="eyebrow">Game over</p>
+        <h1>It got you</h1>
+        <p id="over-stats"></p>
+        <div class="buttons">
+          <button id="over-again">Try again</button>
+          <button id="over-home" class="secondary">Home</button>
         </div>
       </div>
     </div>
